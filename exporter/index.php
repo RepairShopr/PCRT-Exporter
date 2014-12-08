@@ -195,8 +195,8 @@
 
           $context  = stream_context_create($opts);
           $api_version = "/api/v1";
-          $base_url = "http://".RS_SUBDOMAIN.".lvh.me:3000";
-          // $base_url = "https://".RS_SUBDOMAIN.".repairshopr.com";
+          //$base_url = "http://".RS_SUBDOMAIN.".lvh.me:3000";
+          $base_url = "https://".RS_SUBDOMAIN.".repairshopr.com";
 
           $result = file_get_contents($base_url.$api_version."/customers.json?api_key=".RS_API_KEY, false, $context);
           $json_result = json_decode($result, true);
