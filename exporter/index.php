@@ -195,7 +195,7 @@
 
           $context  = stream_context_create($opts);
           $api_version = "/api/v1";
-          //$base_url = "http://".RS_SUBDOMAIN.".lvh.me:3000";
+          // $base_url = "http://".RS_SUBDOMAIN.".lvh.me:3000";
           $base_url = "https://".RS_SUBDOMAIN.".repairshopr.com";
 
           $result = file_get_contents($base_url.$api_version."/customers.json?api_key=".RS_API_KEY, false, $context);
@@ -215,7 +215,81 @@
         }
         mysql_close($connection);
       } elseif($type == 2) {
-        // code for exporting tickets goes here
+        $result = mysql_query("SELECT * FROM pc_wo", $connection);
+        $tickets = [];
+        while($row = mysql_fetch_assoc($result)) {
+          $tickets[] = $row;
+        }
+        $success_count = 0;
+        $failure_count = 0;
+        $failure_message = "";
+        $failed_records = array();
+        $total_tickets = count($tickets);
+        foreach ($tickets as $key => $value) {
+          $customer_sql = mysql_query("SELECT * FROM pc_owner WHERE pcid = ".$value['pcid'], $connection);
+          $customer = [];
+          while($row = mysql_fetch_assoc($customer_sql)) {
+            $customer = $row;
+          }
+
+          $postdata = http_build_query(
+                        array(
+                          'email' => $customer['pcemail'],
+                          'phone' => $customer['pcphone'],
+                          'mobile' => $customer['pccellphone'],
+                          'due_date' => (isset($value['skeddate']) && $value['skeddate'] != "0000-00-00 00:00:00") ? $value['skeddate'] : date('Y-m-d H:i:s'),
+                          'created_at' => $value['dropdate'],
+                          'subject' => isset($value['probdesc']) ? $value['probdesc'] : "",
+                          'problem_type' => "(empty)",
+                          'status' => "RESOLVED"
+                        )
+                      );
+          $opts = array('http' =>
+                    array(
+                      'method'  => 'POST',
+                      'header'  => 'Content-type: application/x-www-form-urlencoded',
+                      'content' => $postdata
+                    )
+                  );
+
+          $context  = stream_context_create($opts);
+          $api_version = "/api/v1";
+          // $base_url = "http://".RS_SUBDOMAIN.".lvh.me:3000";
+          $base_url = "https://".RS_SUBDOMAIN.".repairshopr.com";
+
+          $result = file_get_contents($base_url.$api_version."/tickets.json?api_key=".RS_API_KEY, false, $context);
+          $json_result = json_decode($result, true);
+
+          if($result === false || $json_result === NULL) {
+            $failure_count++;
+          } elseif(isset($json_result['ticket'])) {
+            $comment_post = http_build_query(
+                              array(
+                                'subject' => "PCRT Internal Data",
+                                'body' => json_encode($value),
+                                'hidden' => true
+                              )
+                            );
+            $comment_opts = array('http' =>
+                      array(
+                        'method'  => 'POST',
+                        'header'  => 'Content-type: application/x-www-form-urlencoded',
+                        'content' => $comment_post
+                      )
+            );
+
+            $comment_context  = stream_context_create($comment_opts);
+            $result = file_get_contents($base_url.$api_version."/tickets/".$json_result['ticket']['id']."/comment.json?api_key=".RS_API_KEY, false, $comment_context);
+            $success_count++;
+          } else {
+            if(isset($json_result['success']) && $json_result['success'] === false ){
+              $failed_records[$key]['firstname'] = $json_result['params']['firstname'];
+              $failed_records[$key]['message'] = $json_result['message'][0];
+            }
+            $failure_count++;
+          }
+        }
+        mysql_close($connection);
       }
     }
 ?>
@@ -226,7 +300,7 @@
     <?php } ?>
     <li>
       <a href="index.php?step=2&type=1"> Export Customers </a>
-      <?php if($failure_message == "" && isset($success_count)) {?>
+      <?php if($failure_message == "" && isset($total_customers) && isset($success_count)) {?>
       <p>
         <table>
           <tr>
@@ -261,6 +335,24 @@
     </li>
     <li>
       <a href="index.php?step=2&type=2"> Export Tickets </a>
+      <?php if($failure_message == "" && isset($total_tickets) && isset($success_count)) {?>
+      <p>
+        <table>
+          <tr>
+            <td><b>Total Tickets:</b></td>
+            <td><?php echo $total_tickets;?></td>
+          </tr>
+          <tr>
+            <td><b>Success Count:</b></td>
+            <td><?php echo $success_count;?></td>
+          </tr>
+          <tr>
+            <td><b>Failure Count:</b></td>
+            <td><?php echo $failure_count;?></td>
+          </tr>
+        </table>
+      </p>
+      <?php }?>
     </li>
   </ul>
 </center>
