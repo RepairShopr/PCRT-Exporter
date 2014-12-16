@@ -54,6 +54,14 @@
 </head>
 <?php
   error_reporting(0);
+  $api_version = "/api/v1";
+  $base_url = "";
+  if (file_exists('config.php')) {
+    require "config.php";
+    // $base_url = "http://".RS_SUBDOMAIN.".lvh.me:3000";
+    $base_url = "https://".RS_SUBDOMAIN.".repairshopr.com";
+  }
+
   $step = (isset($_GET['step']) && $_GET['step'] != '') ? $_GET['step'] : '';
   switch($step){
     case '1':
@@ -75,23 +83,35 @@
   </div>
 <?php
   function step_1(){
+    if (file_exists('../repair/deps.php')) {
+      require "../repair/deps.php";
+      $config_exists = 1;
+    }else{
+      $config_exists = 0;
+    }
     if (isset($_POST['submit']) && $_POST['submit']=="Submit") {
-      $db_host = isset($_POST['db_host']) ? $_POST['db_host'] : "";
-      $db_name = isset($_POST['db_name']) ? $_POST['db_name'] : "";
-      $db_username = isset($_POST['db_username']) ? $_POST['db_username'] : "";
-      $db_password = isset($_POST['db_password']) ? $_POST['db_password'] : "";
+      if(isset($config_exists) && $config_exists == 0) {
+        $dbhost = isset($_POST['db_host']) ? $_POST['db_host'] : "";
+        $dbname = isset($_POST['db_name']) ? $_POST['db_name'] : "";
+        $dbuname = isset($_POST['db_username']) ? $_POST['db_username'] : "";
+        $dbpass = isset($_POST['db_password']) ? $_POST['db_password'] : "";
+      }
       $rs_api_key = isset($_POST['rs_api_key']) ? $_POST['rs_api_key'] : "";
       $rs_subdomain = isset($_POST['rs_subdomain']) ? $_POST['rs_subdomain'] : "";
 
-      if (empty($rs_api_key) || empty($rs_subdomain) || empty($db_host) || empty($db_username) || empty($db_name)) {
+      if (($config_exists == 0 && (empty($rs_api_key)
+            || empty($rs_subdomain) || empty($dbhost)
+            || empty($dbuname) || empty($dbname)))
+          || ($config_exists == 1 && (empty($rs_api_key)
+            || empty($rs_subdomain)))) {
         echo "All fields are required! Please re-enter.<br />";
       } else {
         $f = fopen("config.php","w");
         $db_info = "<?php
-          define('DATABASE_HOST', '".$db_host."');
-          define('DATABASE_NAME', '".$db_name."');
-          define('DATABASE_USERNAME', '".$db_username."');
-          define('DATABASE_PASSWORD', '".$db_password."');
+          define('DATABASE_HOST', '".$dbhost."');
+          define('DATABASE_NAME', '".$dbname."');
+          define('DATABASE_USERNAME', '".$dbuname."');
+          define('DATABASE_PASSWORD', '".$dbpass."');
           define('RS_API_KEY', '".$rs_api_key."');
           define('RS_SUBDOMAIN', '".$rs_subdomain."');
         ?>";
@@ -102,7 +122,6 @@
       }
     }
     if (file_exists('config.php')) {
-      include "config.php";
       $db_host = DATABASE_HOST;
       $db_name = DATABASE_NAME;
       $db_username = DATABASE_USERNAME;
@@ -114,6 +133,7 @@
 <center>
   <form method="post" action="index.php?step=1">
     <table>
+      <?php if(isset($config_exists) && $config_exists == 0) {?>
       <tr>
         <td><label for="db_host">Database Host</label></td>
         <td><input type="text" name="db_host" value='localhost' size="30"></td>
@@ -130,6 +150,7 @@
         <td><label for="database_password">Database Password</label></td>
         <td><input type="text" name="db_password" size="30" value="<?php echo isset($db_password) ? $db_password : ''; ?>"></td>
       </tr>
+      <?php } ?>
       <tr>
         <td><label for="rs_api_key">Your RepairShopr API Key</label></td>
         <td><input type="text" name="rs_api_key" size="30" value="<?php echo isset($rs_api_key) ? $rs_api_key : ''; ?>" placeholder="Your RepairShopr API Key"></td>
@@ -153,7 +174,6 @@
     if (!file_exists('config.php')) {
       header("Location: index.php");
     }else{
-      require "config.php";
       $connection = mysql_connect(DATABASE_HOST, DATABASE_USERNAME, DATABASE_PASSWORD);
       mysql_select_db(DATABASE_NAME, $connection);
 
@@ -194,11 +214,8 @@
           );
 
           $context  = stream_context_create($opts);
-          $api_version = "/api/v1";
-          // $base_url = "http://".RS_SUBDOMAIN.".lvh.me:3000";
-          $base_url = "https://".RS_SUBDOMAIN.".repairshopr.com";
-
-          $result = file_get_contents($base_url.$api_version."/customers.json?api_key=".RS_API_KEY, false, $context);
+          
+          $result = file_get_contents($GLOBALS['base_url'].$GLOBALS['api_version']."/customers.json?api_key=".RS_API_KEY, false, $context);
           $json_result = json_decode($result, true);
 
           if($result === false || $json_result === NULL) {
@@ -239,7 +256,7 @@
                           'mobile' => $customer['pccellphone'],
                           'due_date' => (isset($value['skeddate']) && $value['skeddate'] != "0000-00-00 00:00:00") ? $value['skeddate'] : date('Y-m-d H:i:s'),
                           'created_at' => $value['dropdate'],
-                          'subject' => isset($value['probdesc']) ? $value['probdesc'] : "",
+                          'subject' => isset($value['probdesc']) ? $value['probdesc'] : "(empty)",
                           'problem_type' => "(empty)",
                           'status' => "RESOLVED"
                         )
@@ -253,11 +270,8 @@
                   );
 
           $context  = stream_context_create($opts);
-          $api_version = "/api/v1";
-          // $base_url = "http://".RS_SUBDOMAIN.".lvh.me:3000";
-          $base_url = "https://".RS_SUBDOMAIN.".repairshopr.com";
 
-          $result = file_get_contents($base_url.$api_version."/tickets.json?api_key=".RS_API_KEY, false, $context);
+          $result = file_get_contents($GLOBALS['base_url'].$GLOBALS['api_version']."/tickets.json?api_key=".RS_API_KEY, false, $context);
           $json_result = json_decode($result, true);
 
           if($result === false || $json_result === NULL) {
@@ -279,7 +293,7 @@
             );
 
             $comment_context  = stream_context_create($comment_opts);
-            $result = file_get_contents($base_url.$api_version."/tickets/".$json_result['ticket']['id']."/comment.json?api_key=".RS_API_KEY, false, $comment_context);
+            $result = file_get_contents($GLOBALS['base_url'].$GLOBALS['api_version']."/tickets/".$json_result['ticket']['id']."/comment.json?api_key=".RS_API_KEY, false, $comment_context);
             $success_count++;
           } else {
             if(isset($json_result['success']) && $json_result['success'] === false ){
