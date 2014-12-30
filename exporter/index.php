@@ -118,7 +118,9 @@
         if (fwrite($f,$db_info) > 0){
           fclose($f);
         }
-        header("Location: index.php?step=2");
+        echo "<script type='text/javascript'>";
+        echo "window.location='index.php?step=2';";
+        echo "</script>";
       }
     }
     if (file_exists('config.php')) {
@@ -172,7 +174,9 @@
   function step_2( $type = "") {
     $message = "";
     if (!file_exists('config.php')) {
-      header("Location: index.php");
+      echo "<script type='text/javascript'>";
+      echo "window.location='index.php';";
+      echo "</script>";
     }else{
       $connection = mysql_connect(DATABASE_HOST, DATABASE_USERNAME, DATABASE_PASSWORD);
       mysql_select_db(DATABASE_NAME, $connection);
