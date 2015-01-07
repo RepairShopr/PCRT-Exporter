@@ -236,6 +236,19 @@
         }
         mysql_close($connection);
       } elseif($type == 2) {
+        $nice_names = array(
+                        'called' => "Called" ,'pcstatus' => "PC Status",
+                        'probdesc' => "Problem Description", 'pcpriority' => "PC Priority", 
+                        'assigneduser' => "Assigned User", 'custassets' => "Customer Assets", 
+                        'sked' => "Scheduled", 'virusfound' => "Virus Found", 'custnotes' => "Customer Notes",
+                        'technotes' => "Technician Notes", 'pickupdate' => "Pickup Date", 'readydate' => "Ready Date",
+                        'thepass' => "Password", 'workarea' => "Work Area", 'cibyuser' => "ci by user",
+                        'notesbyuser' => "Notes By User", 'cobyuser' => "co by user",
+                        'commonproblems' => "Common Problems", 'thesig' => "thesig", 'thesigwo' => "thesigwo",
+                        'showsigct' => "Show Signature"
+                      );
+        $called_values = array(1=>"Not Called", 2=>"Called", 3=>"Called - No Answer",4=>"Called - Waiting for Call Back",5=>"Sent SMS",6=>"Sent Email");
+
         $result = mysql_query("SELECT * FROM pc_wo", $connection);
         $tickets = [];
         while($row = mysql_fetch_assoc($result)) {
@@ -281,10 +294,28 @@
           if($result === false || $json_result === NULL) {
             $failure_count++;
           } elseif(isset($json_result['ticket'])) {
+            $cmt = "";
+            foreach($value as $k => $v) {
+              if($k == 'sked') {
+                $v = ($v == 1) ? "Yes" : "No";
+              } else if($k == 'pcstatus') {
+                $res_b = mysql_query("SELECT * FROM boxstyles WHERE `statusid` = $v", $connection);
+                while($row = mysql_fetch_assoc($res_b)) {
+                  $v = $row['boxtitle'];
+                }
+              } else if($k == 'called') {
+                if(array_key_exists($v, $called_values)) {
+                  $v =  $called_values[$v];
+                }
+              }
+              if(array_key_exists($k, $nice_names)) {
+                $cmt .=  $nice_names[$k].': '. $v ."\n";
+              }
+            }
             $comment_post = http_build_query(
                               array(
                                 'subject' => "PCRT Internal Data",
-                                'body' => json_encode($value),
+                                'body' => $cmt,
                                 'hidden' => true
                               )
                             );
