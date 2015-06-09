@@ -368,7 +368,7 @@
         $failure_message = "";
         $failed_records = array();
         $total_invoices = count($invoices);
-        // print_r($invoices);die;
+        
         $inv_customers = array();
         $line_items = array();
         foreach ($invoices as $key => $val) {
@@ -383,7 +383,12 @@
             $line_items[$val['invoice_id']][] = $row;
           }
         }
-        // print_r($line_items); die;
+        foreach ($line_items as $key => $value) {
+          foreach ($value as $k => $val) {
+            $line_items[$key][$k]['quantity'] = 1;
+            $line_items[$key][$k]['cost'] = 0.0;
+          }
+        }
 
         foreach ($invoices as $key => $value) {
           $paid = false;
@@ -391,7 +396,7 @@
             $paid = true;
           }
 
-          $postdata = http_build_query(
+          $postdata = json_encode(
                         array(
                           'number' => 'PCRT-'.$value['invoice_id'],
                           'customer_id' => $inv_customers[$value['invoice_id']],
@@ -401,13 +406,15 @@
                           'line_items' => $line_items[$value['invoice_id']]
                         )
                       );
+
           $opts = array('http' =>
                     array(
                       'method'  => 'POST',
-                      'header'  => 'Content-type: application/x-www-form-urlencoded',
+                      'header'  => 'Content-type: application/json',
                       'content' => $postdata
                     )
           );
+
           $context  = stream_context_create($opts);
 
           $result = file_get_contents($GLOBALS['base_url'].$GLOBALS['api_version']."/invoices.json?api_key=".RS_API_KEY, false, $context);
@@ -418,10 +425,6 @@
           } elseif(isset($json_result['invoice'])) {
             $success_count++;
           } else {
-            // if(isset($json_result['success']) && $json_result['success'] === false ){
-            //   $failed_records[$key]['firstname'] = $json_result['params']['firstname'];
-            //   $failed_records[$key]['message'] = $json_result['message'][0];
-            // }
             $failure_count++;
           }
         }
