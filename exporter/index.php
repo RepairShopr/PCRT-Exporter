@@ -368,7 +368,7 @@
         $failure_message = "";
         $failed_records = array();
         $total_invoices = count($invoices);
-        
+
         $inv_customers = array();
         $line_items = array();
         foreach ($invoices as $key => $val) {
@@ -430,6 +430,74 @@
         }
         mysql_close($connection);
       }
+      if($type == 4) {
+        $result = mysql_query("SELECT * FROM pc_owner", $connection);
+        $customers = [];
+        while($row = mysql_fetch_assoc($result)) {
+          $customers[] = $row;
+        }
+        // print_r($customers[1]);die;
+        $success_count = 0;
+        $failure_count = 0;
+        $failure_message = "";
+        $failed_records = array();
+        $total_customers = count($customers);
+
+        foreach ($customers as $key => $value) {
+          $result = mysql_query("SELECT * FROM mainassettypes WHERE mainassettypeid = ". $value['mainassettypeid'], $connection);
+          // $asset = [];
+          $main_asset = [];
+          $properties = [];
+          while($row = mysql_fetch_assoc($result)) {
+            $main_asset = $row;
+          }
+          $asset_info_fields = unserialize($value['pcextra']);
+          
+          foreach ($asset_info_fields as $k => $val) {
+            if($val != "") {
+              $result = mysql_query("SELECT * FROM mainassetinfofields WHERE mainassetfieldid = ". $k, $connection);
+              
+              while($row = mysql_fetch_assoc($result)) {
+                $properties[][$row['mainassetfieldname']] = $val;
+              }
+            }
+          }
+
+          $output = array();
+          foreach($properties as $v) {
+            $output[key($v)] = current($v);
+          }
+
+          $postdata = json_encode(
+                        array(
+                          'name' => $value['pcmake'],
+                          'asset_type_name' => $main_asset['mainassetname'],
+                          'customer_id' => $value['rs_cid'],
+                          'properties' => $output
+                        )
+                      );
+          $opts = array('http' =>
+                    array(
+                      'method'  => 'POST',
+                      'header'  => 'Content-type: application/json',
+                      'content' => $postdata
+                    )
+          );
+
+          $context  = stream_context_create($opts);
+          
+          $result = file_get_contents($GLOBALS['base_url'].$GLOBALS['api_version']."/customer_assets.json?api_key=".RS_API_KEY, false, $context);
+          $json_result = json_decode($result, true);
+
+          if(isset($json_result['asset'])) {
+            $success_count++;
+          } elseif($result === false || $json_result === NULL) {
+            $failure_count++;
+          }
+        }
+        
+        mysql_close($connection);
+      }
     }
 ?>
 <center>
@@ -439,7 +507,7 @@
     <?php } ?>
     <li>
       <a href="index.php?step=2&type=1"> Export Customers </a>
-      <?php if($failure_message == "" && isset($total_customers) && isset($success_count)) {?>
+      <?php if($_GET['type'] == 1 && $failure_message == "" && isset($total_customers) && isset($success_count)) {?>
       <p>
         <table>
           <tr>
@@ -501,6 +569,27 @@
           <tr>
             <td><b>Total Invoices:</b></td>
             <td><?php echo $total_invoices;?></td>
+          </tr>
+          <tr>
+            <td><b>Success Count:</b></td>
+            <td><?php echo $success_count;?></td>
+          </tr>
+          <tr>
+            <td><b>Failure Count:</b></td>
+            <td><?php echo $failure_count;?></td>
+          </tr>
+        </table>
+      </p>
+      <?php }?>
+    </li>
+    <li>
+      <a href="index.php?step=2&type=4"> Export Customer Assets </a>
+      <?php if($_GET['type'] == 4 && $failure_message == "" && isset($total_customers) && isset($success_count)) {?>
+      <p>
+        <table>
+          <tr>
+            <td><b>Total Customers:</b></td>
+            <td><?php echo $total_customers;?></td>
           </tr>
           <tr>
             <td><b>Success Count:</b></td>
