@@ -58,8 +58,8 @@
   $base_url = "";
   if (file_exists('config.php')) {
     require "config.php";
-    // $base_url = "http://".RS_SUBDOMAIN.".lvh.me:3000";
-    $base_url = "https://".RS_SUBDOMAIN.".repairshopr.com";
+    $base_url = "https://".RS_SUBDOMAIN.".repairshopr.co";
+    // $base_url = "https://".RS_SUBDOMAIN.".repairshopr.com";
   }
 
   $step = (isset($_GET['step']) && $_GET['step'] != '') ? $_GET['step'] : '';
@@ -118,6 +118,12 @@
         if (fwrite($f,$db_info) > 0){
           fclose($f);
         }
+        
+        $connection = mysql_connect($dbhost, $dbuname, $dbpass);
+        mysql_select_db($dbname, $connection);
+        $add_column = mysql_query("ALTER TABLE pc_owner ADD rs_cid INTEGER");
+        mysql_close($connection);
+
         echo "<script type='text/javascript'>";
         echo "window.location='index.php?step=2';";
         echo "</script>";
@@ -192,6 +198,16 @@
         $failure_message = "";
         $failed_records = array();
         $total_customers = count($customers);
+        // check if rs_cid exist in pc_owner table, add if does not exist
+        $fields = mysql_list_fields(DATABASE_NAME, 'pc_owner');
+        $columns = mysql_num_fields($fields);
+        $field_array = array();
+        for ($i = 0; $i < $columns; $i++) {
+          $field_array[] = mysql_field_name($fields, $i);
+        }
+        if(!in_array('rs_cid', $field_array)){
+          $add_column = mysql_query("ALTER TABLE pc_owner ADD rs_cid INTEGER");
+        }
         foreach ($customers as $key => $value) {
           $postdata = http_build_query(
                         array(
@@ -225,6 +241,8 @@
           if($result === false || $json_result === NULL) {
             $failure_message = "Not able to connect to RepairShopr at the moment. Please <a href='index.php'>check</a> if you entered API key and subdomain correctly";
           } elseif(isset($json_result['customer'])) {
+            $sql = "UPDATE pc_owner SET rs_cid=".$json_result['customer']['id']." WHERE pcid=".$value['pcid'];
+            $update_cid = mysql_query($sql, $connection);
             $success_count++;
           } else {
             if(isset($json_result['success']) && $json_result['success'] === false ){
@@ -235,7 +253,7 @@
           }
         }
         mysql_close($connection);
-      } elseif($type == 2) {
+      } elseif ($type == 2) {
         $nice_names = array(
                         'called' => "Called" ,'pcstatus' => "PC Status",
                         'probdesc' => "Problem Description", 'pcpriority' => "PC Priority", 
@@ -339,6 +357,146 @@
           }
         }
         mysql_close($connection);
+      } elseif ($type == 3) {
+        $result = mysql_query("SELECT * FROM invoices", $connection);
+        $invoices = [];
+        while($row = mysql_fetch_assoc($result)) {
+          $invoices[] = $row;
+        }
+        $success_count = 0;
+        $failure_count = 0;
+        $failure_message = "";
+        $failed_records = array();
+        $total_invoices = count($invoices);
+
+        $inv_customers = array();
+        $line_items = array();
+        foreach ($invoices as $key => $val) {
+          // get customer's ids
+          $pc_wo = mysql_query("SELECT rs_cid FROM pc_owner WHERE pcid = (SELECT pcid FROM pc_wo WHERE woid = ".$val['woid'].")", $connection);
+          while($row = mysql_fetch_assoc($pc_wo)) {
+            $inv_customers[$val['invoice_id']] = $row['rs_cid'];
+          }
+          // get the line items
+          $li_sql = mysql_query("SELECT cart_price as price, cart_type as item, labor_desc as name FROM invoice_items WHERE invoice_id = " . $val['invoice_id'], $connection);
+          while($row = mysql_fetch_assoc($li_sql)) {
+            $line_items[$val['invoice_id']][] = $row;
+          }
+        }
+        foreach ($line_items as $key => $value) {
+          foreach ($value as $k => $val) {
+            $line_items[$key][$k]['quantity'] = 1;
+            $line_items[$key][$k]['cost'] = 0.0;
+          }
+        }
+
+        foreach ($invoices as $key => $value) {
+          $paid = false;
+          if($value['receipt_id'] > 0){
+            $paid = true;
+          }
+
+          $postdata = json_encode(
+                        array(
+                          'number' => 'PCRT-'.$value['invoice_id'],
+                          'customer_id' => $inv_customers[$value['invoice_id']],
+                          'date' => $value['invdate'],
+                          'date_received' => $value['invdate'],
+                          'paid' => $paid,
+                          'line_items' => $line_items[$value['invoice_id']]
+                        )
+                      );
+
+          $opts = array('http' =>
+                    array(
+                      'method'  => 'POST',
+                      'header'  => 'Content-type: application/json',
+                      'content' => $postdata
+                    )
+          );
+
+          $context  = stream_context_create($opts);
+
+          $result = file_get_contents($GLOBALS['base_url'].$GLOBALS['api_version']."/invoices.json?api_key=".RS_API_KEY, false, $context);
+          $json_result = json_decode($result, true);
+
+          if($result === false || $json_result === NULL) {
+            $failure_message = "Not able to connect to RepairShopr at the moment. Please <a href='index.php'>check</a> if you entered API key and subdomain correctly";
+          } elseif(isset($json_result['invoice'])) {
+            $success_count++;
+          } else {
+            $failure_count++;
+          }
+        }
+        mysql_close($connection);
+      }
+      if($type == 4) {
+        $result = mysql_query("SELECT * FROM pc_owner", $connection);
+        $customers = [];
+        while($row = mysql_fetch_assoc($result)) {
+          $customers[] = $row;
+        }
+        // print_r($customers[1]);die;
+        $success_count = 0;
+        $failure_count = 0;
+        $failure_message = "";
+        $failed_records = array();
+        $total_customers = count($customers);
+
+        foreach ($customers as $key => $value) {
+          $result = mysql_query("SELECT * FROM mainassettypes WHERE mainassettypeid = ". $value['mainassettypeid'], $connection);
+          // $asset = [];
+          $main_asset = [];
+          $properties = [];
+          while($row = mysql_fetch_assoc($result)) {
+            $main_asset = $row;
+          }
+          $asset_info_fields = unserialize($value['pcextra']);
+          
+          foreach ($asset_info_fields as $k => $val) {
+            if($val != "") {
+              $result = mysql_query("SELECT * FROM mainassetinfofields WHERE mainassetfieldid = ". $k, $connection);
+              
+              while($row = mysql_fetch_assoc($result)) {
+                $properties[][$row['mainassetfieldname']] = $val;
+              }
+            }
+          }
+
+          $output = array();
+          foreach($properties as $v) {
+            $output[key($v)] = current($v);
+          }
+
+          $postdata = json_encode(
+                        array(
+                          'name' => $value['pcmake'],
+                          'asset_type_name' => $main_asset['mainassetname'],
+                          'customer_id' => $value['rs_cid'],
+                          'properties' => $output
+                        )
+                      );
+          $opts = array('http' =>
+                    array(
+                      'method'  => 'POST',
+                      'header'  => 'Content-type: application/json',
+                      'content' => $postdata
+                    )
+          );
+
+          $context  = stream_context_create($opts);
+          
+          $result = file_get_contents($GLOBALS['base_url'].$GLOBALS['api_version']."/customer_assets.json?api_key=".RS_API_KEY, false, $context);
+          $json_result = json_decode($result, true);
+
+          if(isset($json_result['asset'])) {
+            $success_count++;
+          } elseif($result === false || $json_result === NULL) {
+            $failure_count++;
+          }
+        }
+        
+        mysql_close($connection);
       }
     }
 ?>
@@ -349,7 +507,7 @@
     <?php } ?>
     <li>
       <a href="index.php?step=2&type=1"> Export Customers </a>
-      <?php if($failure_message == "" && isset($total_customers) && isset($success_count)) {?>
+      <?php if($_GET['type'] == 1 && $failure_message == "" && isset($total_customers) && isset($success_count)) {?>
       <p>
         <table>
           <tr>
@@ -390,6 +548,48 @@
           <tr>
             <td><b>Total Tickets:</b></td>
             <td><?php echo $total_tickets;?></td>
+          </tr>
+          <tr>
+            <td><b>Success Count:</b></td>
+            <td><?php echo $success_count;?></td>
+          </tr>
+          <tr>
+            <td><b>Failure Count:</b></td>
+            <td><?php echo $failure_count;?></td>
+          </tr>
+        </table>
+      </p>
+      <?php }?>
+    </li>
+    <li>
+      <a href="index.php?step=2&type=3"> Export Invoices </a>
+      <?php if($failure_message == "" && isset($total_invoices) && isset($success_count)) {?>
+      <p>
+        <table>
+          <tr>
+            <td><b>Total Invoices:</b></td>
+            <td><?php echo $total_invoices;?></td>
+          </tr>
+          <tr>
+            <td><b>Success Count:</b></td>
+            <td><?php echo $success_count;?></td>
+          </tr>
+          <tr>
+            <td><b>Failure Count:</b></td>
+            <td><?php echo $failure_count;?></td>
+          </tr>
+        </table>
+      </p>
+      <?php }?>
+    </li>
+    <li>
+      <a href="index.php?step=2&type=4"> Export Customer Assets </a>
+      <?php if($_GET['type'] == 4 && $failure_message == "" && isset($total_customers) && isset($success_count)) {?>
+      <p>
+        <table>
+          <tr>
+            <td><b>Total Customers:</b></td>
+            <td><?php echo $total_customers;?></td>
           </tr>
           <tr>
             <td><b>Success Count:</b></td>
