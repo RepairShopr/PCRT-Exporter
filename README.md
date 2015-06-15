@@ -3,9 +3,9 @@ PCRT-Exporter
 
 A simple script to help import your data into RepairShopr from your PCRT installation.
 
-Right now it supports Customers and Tickets.
+Right now it supports Customers/Tickets/Invoices/Assets.
 
-(invoices will be coming soon)
+It brings in your "Receipts" as invoices.
 
 How to use it:
 
