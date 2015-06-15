@@ -58,8 +58,8 @@
   $base_url = "";
   if (file_exists('config.php')) {
     require "config.php";
-    $base_url = "https://".RS_SUBDOMAIN.".repairshopr.co";
-    // $base_url = "https://".RS_SUBDOMAIN.".repairshopr.com";
+    // $base_url = "https://".RS_SUBDOMAIN.".repairshopr.co";
+    $base_url = "https://".RS_SUBDOMAIN.".repairshopr.com";
   }
 
   $step = (isset($_GET['step']) && $_GET['step'] != '') ? $_GET['step'] : '';
