@@ -277,7 +277,13 @@
         $failure_message = "";
         $failed_records = array();
         $total_tickets = count($tickets);
+        $count=0;
         foreach ($tickets as $key => $value) {
+          $count++;
+          if(($count%10)==0)
+            {
+              sleep(5);
+            }
           $customer_sql = mysql_query("SELECT * FROM pc_owner WHERE pcid = ".$value['pcid'], $connection);
           $customer = [];
           while($row = mysql_fetch_assoc($customer_sql)) {
