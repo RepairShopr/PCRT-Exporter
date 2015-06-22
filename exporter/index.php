@@ -58,10 +58,9 @@
   $base_url = "";
   if (file_exists('config.php')) {
     require "config.php";
-    $base_url = "https://".RS_SUBDOMAIN.".repairshopr.co";
-    // $base_url = "https://".RS_SUBDOMAIN.".repairshopr.com";
+    // $base_url = "https://".RS_SUBDOMAIN.".repairshopr.co";
+    $base_url = "https://".RS_SUBDOMAIN.".repairshopr.com";
   }
-
   $step = (isset($_GET['step']) && $_GET['step'] != '') ? $_GET['step'] : '';
   switch($step){
     case '1':
@@ -98,7 +97,6 @@
       }
       $rs_api_key = isset($_POST['rs_api_key']) ? $_POST['rs_api_key'] : "";
       $rs_subdomain = isset($_POST['rs_subdomain']) ? $_POST['rs_subdomain'] : "";
-
       if (($config_exists == 0 && (empty($rs_api_key)
             || empty($rs_subdomain) || empty($dbhost)
             || empty($dbuname) || empty($dbname)))
@@ -123,7 +121,6 @@
         mysql_select_db($dbname, $connection);
         $add_column = mysql_query("ALTER TABLE pc_owner ADD rs_cid INTEGER");
         mysql_close($connection);
-
         echo "<script type='text/javascript'>";
         echo "window.location='index.php?step=2';";
         echo "</script>";
@@ -176,7 +173,6 @@
 </center>
 <?php
   }
-
   function step_2( $type = "") {
     $message = "";
     if (!file_exists('config.php')) {
@@ -186,7 +182,6 @@
     }else{
       $connection = mysql_connect(DATABASE_HOST, DATABASE_USERNAME, DATABASE_PASSWORD);
       mysql_select_db(DATABASE_NAME, $connection);
-
       if($type == 1) {
         $result = mysql_query("SELECT * FROM pc_owner", $connection);
         $customers = [];
@@ -232,12 +227,10 @@
                       'content' => $postdata
                     )
           );
-
           $context  = stream_context_create($opts);
           
           $result = file_get_contents($GLOBALS['base_url'].$GLOBALS['api_version']."/customers.json?api_key=".RS_API_KEY, false, $context);
           $json_result = json_decode($result, true);
-
           if($result === false || $json_result === NULL) {
             $failure_message = "Not able to connect to RepairShopr at the moment. Please <a href='index.php'>check</a> if you entered API key and subdomain correctly";
           } elseif(isset($json_result['customer'])) {
@@ -266,7 +259,6 @@
                         'showsigct' => "Show Signature"
                       );
         $called_values = array(1=>"Not Called", 2=>"Called", 3=>"Called - No Answer",4=>"Called - Waiting for Call Back",5=>"Sent SMS",6=>"Sent Email");
-
         $result = mysql_query("SELECT * FROM pc_wo", $connection);
         $tickets = [];
         while($row = mysql_fetch_assoc($result)) {
@@ -277,13 +269,18 @@
         $failure_message = "";
         $failed_records = array();
         $total_tickets = count($tickets);
+        $count=0;
         foreach ($tickets as $key => $value) {
+          $count++;
+          if(($count%10)==0)
+            {
+              sleep(5);
+            }
           $customer_sql = mysql_query("SELECT * FROM pc_owner WHERE pcid = ".$value['pcid'], $connection);
           $customer = [];
           while($row = mysql_fetch_assoc($customer_sql)) {
             $customer = $row;
           }
-
           $postdata = http_build_query(
                         array(
                           'email' => $customer['pcemail'],
@@ -303,12 +300,9 @@
                       'content' => $postdata
                     )
                   );
-
           $context  = stream_context_create($opts);
-
           $result = file_get_contents($GLOBALS['base_url'].$GLOBALS['api_version']."/tickets.json?api_key=".RS_API_KEY, false, $context);
           $json_result = json_decode($result, true);
-
           if($result === false || $json_result === NULL) {
             $failure_count++;
           } elseif(isset($json_result['ticket'])) {
@@ -344,7 +338,6 @@
                         'content' => $comment_post
                       )
             );
-
             $comment_context  = stream_context_create($comment_opts);
             $result = file_get_contents($GLOBALS['base_url'].$GLOBALS['api_version']."/tickets/".$json_result['ticket']['id']."/comment.json?api_key=".RS_API_KEY, false, $comment_context);
             $success_count++;
@@ -368,7 +361,6 @@
         $failure_message = "";
         $failed_records = array();
         $total_invoices = count($invoices);
-
         $inv_customers = array();
         $line_items = array();
         foreach ($invoices as $key => $val) {
@@ -378,7 +370,8 @@
             $inv_customers[$val['invoice_id']] = $row['rs_cid'];
           }
           // get the line items
-          $li_sql = mysql_query("SELECT cart_price as price, cart_type as item, labor_desc as name FROM invoice_items WHERE invoice_id = " . $val['invoice_id'], $connection);
+          $li_sql = mysql_query("SELECT cart_price as price, cart_type as item, labor_desc as name, taxex as taxable FROM invoice_items WHERE invoice_id = " . $val['invoice_id'], $connection);
+          
           while($row = mysql_fetch_assoc($li_sql)) {
             $line_items[$val['invoice_id']][] = $row;
           }
@@ -387,15 +380,19 @@
           foreach ($value as $k => $val) {
             $line_items[$key][$k]['quantity'] = 1;
             $line_items[$key][$k]['cost'] = 0.0;
+            if($line_items[$key][$k]['taxable'] == 5){
+              $line_items[$key][$k]['taxable'] = 0;
+            }else{
+              $line_items[$key][$k]['taxable'] = 1;
+            }
           }
         }
-
+        
         foreach ($invoices as $key => $value) {
           $paid = false;
           if($value['receipt_id'] > 0){
             $paid = true;
           }
-
           $postdata = json_encode(
                         array(
                           'number' => 'PCRT-'.$value['invoice_id'],
@@ -406,7 +403,6 @@
                           'line_items' => $line_items[$value['invoice_id']]
                         )
                       );
-
           $opts = array('http' =>
                     array(
                       'method'  => 'POST',
@@ -414,12 +410,9 @@
                       'content' => $postdata
                     )
           );
-
           $context  = stream_context_create($opts);
-
           $result = file_get_contents($GLOBALS['base_url'].$GLOBALS['api_version']."/invoices.json?api_key=".RS_API_KEY, false, $context);
           $json_result = json_decode($result, true);
-
           if($result === false || $json_result === NULL) {
             $failure_message = "Not able to connect to RepairShopr at the moment. Please <a href='index.php'>check</a> if you entered API key and subdomain correctly";
           } elseif(isset($json_result['invoice'])) {
@@ -442,7 +435,6 @@
         $failure_message = "";
         $failed_records = array();
         $total_customers = count($customers);
-
         foreach ($customers as $key => $value) {
           $result = mysql_query("SELECT * FROM mainassettypes WHERE mainassettypeid = ". $value['mainassettypeid'], $connection);
           // $asset = [];
@@ -462,12 +454,10 @@
               }
             }
           }
-
           $output = array();
           foreach($properties as $v) {
             $output[key($v)] = current($v);
           }
-
           $postdata = json_encode(
                         array(
                           'name' => $value['pcmake'],
@@ -483,12 +473,10 @@
                       'content' => $postdata
                     )
           );
-
           $context  = stream_context_create($opts);
           
           $result = file_get_contents($GLOBALS['base_url'].$GLOBALS['api_version']."/customer_assets.json?api_key=".RS_API_KEY, false, $context);
           $json_result = json_decode($result, true);
-
           if(isset($json_result['asset'])) {
             $success_count++;
           } elseif($result === false || $json_result === NULL) {
@@ -607,3 +595,4 @@
 </center>
 <?php
   }
+  
