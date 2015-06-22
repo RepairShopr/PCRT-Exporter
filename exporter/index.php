@@ -395,7 +395,7 @@
           }
           $postdata = json_encode(
                         array(
-                          'number' => 'PCRT-'.$value['invoice_id'],
+                          'number' => $value['invoice_id'],
                           'customer_id' => $inv_customers[$value['invoice_id']],
                           'date' => $value['invdate'],
                           'date_received' => $value['invdate'],
