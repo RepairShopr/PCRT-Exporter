@@ -133,7 +133,7 @@ function exportTickets()
             'created_at' => $item['dropdate'],
             'subject' => isset($item['probdesc']) ? $item['probdesc'] : "(empty)",
             'problem_type' => "(empty)",
-            'status' => "RESOLVED",
+            'status' => "Resolved",
             'comment_subject'=>'PCRT Internal Data',
             'comment_body'=>$cmt,
             'comment_hidden'=>true
