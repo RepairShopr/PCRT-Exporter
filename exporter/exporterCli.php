@@ -1,14 +1,75 @@
 <?php
 ini_set('memory_limit','-1');
-include dirname(__FILE__)."/configCli.php";
+ini_set('max_execution_time',0);
+
+/*
+ * Configuration section ==============================>
+ */
+
+if(!file_exists(dirname(__FILE__)."/configCli.php")){
+    //Ask user to fill necessary data
+
+    if (file_exists('../repair/deps.php')) {
+        //get dbhost, dbname,dbuname,dbpass from here
+        require dirname(__FILE__)."/../repair/deps.php";
+    }else{
+        fwrite(STDOUT, "\nExporter couldn't find a configuration file. Please fill the following data:");
+        //Get host
+        fwrite(STDOUT, "\nDatabase host: ");
+        $dbhost = trim(fgets(STDIN));
+
+        //Get dbname
+        fwrite(STDOUT, "\nDatabase name: ");
+        $dbname = trim(fgets(STDIN));
+
+        //Get dbuname
+        fwrite(STDOUT,"\nDatabase user: ");
+        $dbuname = trim(fgets(STDIN));
+
+        //Get dbpass
+        fwrite(STDOUT,"\nDatabase password: ");
+        $dbpass = trim(fgets(STDIN));
+    }
+
+    //Get rs_api_key
+    fwrite(STDOUT,"\nRepairShopr API Key: ");
+    $rs_api_key = trim(fgets(STDIN));
+
+    //Get rs_subdomain
+    fwrite(STDOUT,"\nRepairShopr Subdomain: ");
+    $rs_subdomain = trim(fgets(STDIN));
+
+
+    $db_info = "<?php
+                  define('DATABASE_HOST', '".$dbhost."');
+                  define('DATABASE_NAME', '".$dbname."');
+                  define('DATABASE_USERNAME', '".$dbuname."');
+                  define('DATABASE_PASSWORD', '".$dbpass."');
+                  define('RS_API_KEY', '".$rs_api_key."');
+                  define('RS_SUBDOMAIN', '".$rs_subdomain."');
+                  define('BASE_URL','https://".$rs_subdomain.".repairshopr.com');
+                  define('BASE_URL','https://".$rs_subdomain.".repairshopr.com');
+                  define('API_VERSION','/api/v1');
+                ?>";
+
+
+    file_put_contents(dirname(__FILE__)."/configCli.php",$db_info);
+
+}else require dirname(__FILE__)."/configCli.php";
+
+
+//Configuration section end ===========================>
+//include config if exists
 date_default_timezone_set('America/New_York');
 
 /**
  * Set connection to a database using PDO
  */
 
-$pdo = new PDO("mysql:host=localhost;dbname=pcrt","root","mysql");
+$pdo = new PDO("mysql:host=".DATABASE_HOST.";dbname=".DATABASE_NAME,DATABASE_USERNAME,DATABASE_PASSWORD);
 if(!$pdo) die("\rCould not establish connection to a database!");
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
 
 /**
  *  Export customers ============================================================>
@@ -133,7 +194,7 @@ function exportTickets()
             'created_at' => $item['dropdate'],
             'subject' => isset($item['probdesc']) ? $item['probdesc'] : "(empty)",
             'problem_type' => "(empty)",
-            'status' => "RESOLVED",
+            'status' => "Resolved",
             'comment_subject'=>'PCRT Internal Data',
             'comment_body'=>$cmt,
             'comment_hidden'=>true
