@@ -272,15 +272,17 @@ function exportInvoices()
     }
 
     $curl = curl_init();
+    $cnt = 0;
     foreach ($invoices as $key => $value) {
         $paid = false;
         if($value['receipt_id'] > 0){
             $paid = true;
         }
+
         $postdata = json_encode(
             array(
                 'number' => $value['invoice_id'],
-                'customer_id' => $inv_customers[$value['invoice_id']],
+                'customer_id' => $value['rs_cid'],
                 'date' => $value['invdate'],
                 'date_received' => $value['invdate'],
                 'paid' => $paid,
@@ -301,7 +303,7 @@ function exportInvoices()
                 'Content-Length: ' . strlen($postdata))
         );
         $out = curl_exec($curl);
-        echo "\r $out";
+
         $json_result = json_decode($out, true);
         if($out === false || $json_result === NULL) {
             echo "Not able to connect to RepairShopr at the moment. Please check if you entered API key and subdomain correctly";
@@ -310,6 +312,8 @@ function exportInvoices()
         } else {
             $failure_count++;
         }
+        $cnt++;
+        echo "\rInvoice $cnt / $total_invoices, Completed: ".($cnt/$total_invoices*100)."%";
     }
 
     curl_close($curl);
@@ -333,16 +337,17 @@ function exportAssets()
     while($row = mysql_fetch_assoc($result)) {
         $customers[] = $row;
     }
-    echo mysql_num_rows($result);
-    print_r($customers[1]);
+
+
     $success_count = 0;
     $failure_count = 0;
     $failure_message = "";
     $failed_records = array();
     $total_customers = count($customers);
-    echo "total customers = ".$total_customers;
+   // echo "total customers = ".$total_customers;
 
     $curl = curl_init();
+    $cnt = 0;
     foreach ($customers as $key => $value) {
         $result = mysql_query("SELECT * FROM mainassettypes WHERE mainassettypeid = ". $value['mainassettypeid'], $connection);
         // $asset = [];
@@ -397,6 +402,9 @@ function exportAssets()
         } elseif($out === false || $json_result === NULL) {
             $failure_count++;
         }
+        $cnt++;
+        echo "\rAsset $cnt / $total_customers, Completed: ".($cnt/$total_customers*100)."%";
+
     }
 
     mysql_close($connection);
