@@ -47,14 +47,13 @@ if(!file_exists(dirname(__FILE__)."/configCli.php")){
                   define('DATABASE_PASSWORD', '".$dbpass."');
                   define('RS_API_KEY', '".$rs_api_key."');
                   define('RS_SUBDOMAIN', '".$rs_subdomain."');
-                  define('BASE_URL','https://".$rs_subdomain.".repairshopr.com');
-                  define('BASE_URL','https://".$rs_subdomain.".repairshopr.com');
+                  define('BASE_URL','https://".$rs_subdomain.".repairshopr.com');                 
                   define('API_VERSION','/api/v1');
                 ?>";
 
 
     file_put_contents(dirname(__FILE__)."/configCli.php",$db_info);
-
+    require_once(dirname(__FILE__)."/configCli.php");
 }else require dirname(__FILE__)."/configCli.php";
 
 
