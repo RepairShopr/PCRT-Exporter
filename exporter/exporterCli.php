@@ -80,7 +80,8 @@ function exportCustomers()
 //Get customers
     global $pdo;
     $pdoStatement = $pdo->prepare("SELECT
-                                    pccompany as business_name
+                                    pcid
+                                   ,pccompany as business_name
                                    ,pcname as firstname
                                    ,'' as lastname
                                    ,pcemail as email
@@ -113,6 +114,7 @@ function exportCustomers()
         curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 0);
         curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0);
         $out = curl_exec($curl);
+        $out = json_decode($out,true);
         $cnt++;
 
         if($out === false || $out === NULL) {
