@@ -79,6 +79,15 @@ function exportCustomers()
 
 //Get customers
     global $pdo;
+
+    //Check for rs_cid columns
+    $pdoStatement = $pdo->query("DESCRIBE `pc_owner`");
+    $columns = $pdoStatement->fetchAll(PDO::FETCH_COLUMN);   
+    $columns = array_flip($columns);  
+    if(!isset($columns['rs_cid'])){
+        $pdo->query("ALTER TABLE pc_owner ADD rs_cid INTEGER");
+    }
+    
     $pdoStatement = $pdo->prepare("SELECT
                                     pcid
                                    ,pccompany as business_name
@@ -116,7 +125,7 @@ function exportCustomers()
         $out = curl_exec($curl);
         $out = json_decode($out,true);
         $cnt++;
-
+       //print_r($out);
         if($out === false || $out === NULL) {
             $failure_message = "\n\rNot able to connect to RepairShopr at the moment. Please check if you entered API key and subdomain correctly";
             echo $failure_message;
@@ -125,6 +134,7 @@ function exportCustomers()
             $pdo->query($sql);
         }
         echo "\rCustomer $cnt / $totalCustomers, Completed: ".($cnt/$totalCustomers*100)."%";
+      
 
     }
 
