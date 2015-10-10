@@ -87,7 +87,7 @@ function exportCustomers()
     if(!isset($columns['rs_cid'])){
         $pdo->query("ALTER TABLE pc_owner ADD rs_cid INTEGER");
     }
-    
+
     $pdoStatement = $pdo->prepare("SELECT
                                     pcid
                                    ,pccompany as business_name
@@ -103,7 +103,7 @@ function exportCustomers()
                                    ,pczip as zip
                                    ,pcnotes as notes
                                 FROM `pc_owner`
-                                WHERE rs_cid is null");
+                                WHERE rs_cid is null and LENGTH(pcemail)>0");
     if(!$pdoStatement->execute()) die("\rCould not get the list of customers!");
 
     $customers = $pdoStatement->fetchAll(PDO::FETCH_ASSOC);
@@ -112,6 +112,7 @@ function exportCustomers()
 //Send clients via API
     $curl = curl_init();
     $cnt = 0;
+    $errors = 0;
     $totalCustomers = count($customers);
     foreach($customers as $customer){
         //if the process was interrupted - next time begin with "not yet imported customer"// todo:
@@ -125,20 +126,30 @@ function exportCustomers()
         $out = curl_exec($curl);
         $out = json_decode($out,true);
         $cnt++;
-       //print_r($out);
+      //  print_r($out);
         if($out === false || $out === NULL) {
             $failure_message = "\n\rNot able to connect to RepairShopr at the moment. Please check if you entered API key and subdomain correctly";
             echo $failure_message;
-        } elseif(isset($out['customer'])) {
+            $errors++;
+          
+        }elseif(isset($out['message'])){
+           //print_r($customer);
+            echo "\n\rMessage from server while exporting customer (".$customer['email']."): ".implode("\n",$out['message'])."\n";
+            $errors++;
+            
+        }
+        else if(isset($out['customer'])) {
             $sql = "UPDATE pc_owner SET rs_cid=".$out['customer']['id']." WHERE pcid=".$customer['pcid'];
             $pdo->query($sql);
+              echo "\nCustomer $cnt / $totalCustomers, Finished: ".($cnt/$totalCustomers*100)."%";
         }
-        echo "\rCustomer $cnt / $totalCustomers, Completed: ".($cnt/$totalCustomers*100)."%";
-      
+       
+     
 
     }
 
     curl_close($curl);
+    echo "\nError count: $errors/$totalCustomers";
 
 }
 
