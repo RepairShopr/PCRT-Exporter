@@ -76,9 +76,15 @@ $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 function exportCustomers()
 {
-
-//Get customers
+    //Get customers
     global $pdo;
+    //Check for rs_cid columns
+    $pdoStatement = $pdo->query("DESCRIBE `pc_owner`");
+    $columns = $pdoStatement->fetchAll(PDO::FETCH_COLUMN);   
+    $columns = array_flip($columns);  
+    if(!isset($columns['rs_cid'])){
+       $pdo->query("ALTER TABLE pc_owner ADD rs_cid INTEGER");
+    };
     $pdoStatement = $pdo->prepare("SELECT
                                     pcid
                                    ,pccompany as business_name
