@@ -76,7 +76,8 @@ $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 function exportCustomers()
 {
-    //Get customers
+
+//Get customers
     global $pdo;
     //Check for rs_cid columns
     $pdoStatement = $pdo->query("DESCRIBE `pc_owner`");
@@ -339,7 +340,7 @@ function exportAssets()
     $connection = mysql_connect(DATABASE_HOST, DATABASE_USERNAME, DATABASE_PASSWORD);
     mysql_select_db(DATABASE_NAME, $connection);
     $result = mysql_query("SELECT * FROM pc_owner where rs_cid is not null", $connection) or die(mysql_error());
-    $customers = [];
+    $customers = array();
     while($row = mysql_fetch_assoc($result)) {
         $customers[] = $row;
     }
@@ -357,8 +358,8 @@ function exportAssets()
     foreach ($customers as $key => $value) {
         $result = mysql_query("SELECT * FROM mainassettypes WHERE mainassettypeid = ". $value['mainassettypeid'], $connection);
         // $asset = [];
-        $main_asset = [];
-        $properties = [];
+        $main_asset = array();
+        $properties = array();
         while($row = mysql_fetch_assoc($result)) {
             $main_asset = $row;
         }
