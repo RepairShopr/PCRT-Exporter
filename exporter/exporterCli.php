@@ -364,13 +364,14 @@ function exportAssets() {
         foreach ($assets as $asset => $av) {
             $main_asset[] = $av['mainassetname'];
         }
-        $asset_info_fields = unserialize($value['pcextra']);
+        $asset_info_fields[] = unserialize($value['pcextra']);
+
 
         foreach ($asset_info_fields as $k => $val) {
             if($val != "") {
-                $stmnt = $pdo->prepare("SELECT * FROM mainassetinfofields WHERE mainassetfieldid = ". $val);
+                $stmnt = $pdo->prepare("SELECT * FROM mainassetinfofields WHERE mainassetfieldid = ". $k);
                 while($row = $stmnt->fetchAll(PDO::FETCH_ASSOC)) {
-                    $properties[][$row['mainassetfieldname']] = $k;
+                    $properties[][$row['mainassetfieldname']] = $val;
                 }
             }
         }
@@ -386,7 +387,7 @@ function exportAssets() {
                 'properties' => $output
             )
         );
-        //print("$postdata");
+        print("\r$postdata");
 
 
 
