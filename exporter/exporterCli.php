@@ -215,7 +215,7 @@ function exportTickets()
         curl_setopt($curl, CURLOPT_RETURNTRANSFER,true);
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($data));
-        //  curl_setopt($curl, CURLOPT_VERBOSE, true);
+        //curl_setopt($curl, CURLOPT_VERBOSE, true);
         curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 0);
         curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0);
         $out = curl_exec($curl);
@@ -355,18 +355,20 @@ function exportAssets() {
     $curl = curl_init();
     $cnt = 0;
     foreach ($customers as $key => $value) {
-        $connection = $pdo->query("SELECT * FROM mainassettypes WHERE mainassettypeid = ". $value['rs_cid']);
+        $get_assets = $pdo->prepare("SELECT * FROM mainassettypes WHERE mainassettypeid = ". $value['mainassettypeid']);
+        if(!$get_assets->execute()) die("\rCould not get the list of assets with matching ids!");
         // $asset = [];
         $main_asset = array();
         $properties = array();
-        while($row = $connection->fetchAll(PDO::FETCH_ASSOC)) {
-            $main_asset = $row;
+        $assets = $get_assets->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($assets as $asset => $av) {
+            $main_asset[] = $av['mainassetname'];
         }
         $asset_info_fields = unserialize($value['pcextra']);
 
         foreach ($asset_info_fields as $k => $val) {
             if($val != "") {
-                $stmnt = $pdo->query("SELECT * FROM mainassetinfofields WHERE mainassetfieldid = ". $val);
+                $stmnt = $pdo->prepare("SELECT * FROM mainassetinfofields WHERE mainassetfieldid = ". $val);
                 while($row = $stmnt->fetchAll(PDO::FETCH_ASSOC)) {
                     $properties[][$row['mainassetfieldname']] = $k;
                 }
@@ -379,11 +381,12 @@ function exportAssets() {
         $postdata = json_encode(
             array(
                 'name' => $value['pcmake'],
-                'asset_type_name' => $main_asset['mainassetname'],
+                'asset_type_name' => $main_asset,
                 'customer_id' => $value['rs_cid'],
                 'properties' => $output
             )
         );
+        //print("$postdata");
 
 
 
