@@ -101,7 +101,7 @@ function exportCustomers()
                                    ,pczip as zip
                                    ,pcnotes as notes
                                 FROM `pc_owner`
-                                WHERE rs_cid is null");
+                                WHERE rs_cid is null and LENGTH(pcemail)>0");
     if(!$pdoStatement->execute()) die("\rCould not get the list of customers!");
 
     $customers = $pdoStatement->fetchAll(PDO::FETCH_ASSOC);
@@ -110,6 +110,7 @@ function exportCustomers()
 //Send clients via API
     $curl = curl_init();
     $cnt = 0;
+    $errors = 0;
     $totalCustomers = count($customers);
     if($totalCustomers <= 0) print("\rThere are $totalCustomers customers to retrieve.");
     foreach($customers as $customer){
@@ -128,15 +129,23 @@ function exportCustomers()
         if($out === false || $out === NULL) {
             $failure_message = "\n\rNot able to connect to RepairShopr at the moment. Please check if you entered API key and subdomain correctly";
             echo $failure_message;
-        } elseif(isset($out['customer'])) {
+            $errors++;
+          
+        }elseif(isset($out['message'])){
+           //print_r($customer);
+            echo "\n\rMessage from server while exporting customer (".$customer['email']."): ".implode("\n",$out['message'])."\n";
+            $errors++;
+            
+        }
+        else if(isset($out['customer'])) {
             $sql = "UPDATE pc_owner SET rs_cid=".$out['customer']['id']." WHERE pcid=".$customer['pcid'];
             $pdo->query($sql);
         }
-        echo "\rCustomer $cnt / $totalCustomers, Completed: ".($cnt/$totalCustomers*100)."%";
-
+        echo "\nCustomer $cnt / $totalCustomers, Finished: ".($cnt/$totalCustomers*100)."%";
     }
 
     curl_close($curl);
+    echo "\nError count: $errors/$totalCustomers";
 
 }
 
@@ -345,15 +354,16 @@ function exportAssets() {
 
     $success_count = 0;
     $failure_count = 0;
-    $failure_message = "\rSomething has gone wrong";
+    $failure_message = "\nSomething has gone wrong";
     $failed_records = array();
     $total_customers = count($customers);
     $asset_info_fields = array();
-    if($totalCustomers <= 0) print("\rThere are $totalCustomers assets to retrieve.");
+    if($totalCustomers <= 0) print("\rThere are $total_customers assets to retrieve.");
     //print("total customers = ".$total_customers);
 
     $curl = curl_init();
     $cnt = 0;
+    $errors = 0;
     foreach ($customers as $key => $value) {
         $get_assets = $pdo->prepare("SELECT * FROM mainassettypes WHERE mainassettypeid = ". $value['mainassettypeid']);
         if(!$get_assets->execute()) die("\rCould not get the list of assets with matching ids!");
@@ -388,7 +398,7 @@ function exportAssets() {
                 'properties' => $output
             )
         );
-        print("\r$postdata");
+        //print("\n$postdata");
 
 
 
@@ -406,6 +416,15 @@ function exportAssets() {
         $out = curl_exec($curl);
         if($out === false || $out === NULL) {
             echo $failure_message;
+            $errors++;
+          
+        } elseif(isset($out['message'])){
+            echo "\n\rMessage from server while exporting customer (".$customers['email']."): ".implode("\n",$out['message'])."\n";
+            $errors++;
+        } else if(isset($out['customer'])) {
+            $sql = "UPDATE pc_owner SET rs_cid=".$out['customer']['id']." WHERE pcid=".$customers['pcid'];
+            $pdo->query($sql);
+            echo "\nCustomer $cnt / $total_customers, Finished: ".($cnt/$total_customers*100)."%";
         } elseif(isset($json_result['asset'])) {
             $success_count++;
         } else {
@@ -416,8 +435,8 @@ function exportAssets() {
         $cnt++;
         echo "\rAsset $cnt / $total_customers, Completed: ".($cnt/$total_customers*100)."%";
     }
-
     curl_close($curl);
+    echo "\nError count: $errors/$total_customers";
 }
 /**
  * Export assets end ===============================================================>
