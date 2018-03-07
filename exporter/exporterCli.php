@@ -376,6 +376,7 @@ function exportAssets()
                 'name' => $value['pcmake'],
                 'asset_type_name' => $main_asset['mainassetname'],
                 'customer_id' => $value['rs_cid'],
+                'asset_serial' => $value['rs_cid']
                 'properties' => $output
             )
         );
