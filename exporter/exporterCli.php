@@ -358,11 +358,11 @@ function exportAssets() {
         $get_assets = $pdo->prepare("SELECT * FROM mainassettypes WHERE mainassettypeid = ". $value['mainassettypeid']);
         if(!$get_assets->execute()) die("\rCould not get the list of assets with matching ids!");
         // $asset = [];
-        $main_asset = array();
+        $main_asset = null;
         $properties = array();
         $assets = $get_assets->fetchAll(PDO::FETCH_ASSOC);
         foreach ($assets as $asset => $av) {
-            $main_asset[] = $av['mainassetname'];
+            $main_asset = $av['mainassetname'];
         }
         $asset_info_fields[] = unserialize($value['pcextra']);
 
