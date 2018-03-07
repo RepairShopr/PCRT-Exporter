@@ -79,6 +79,13 @@ function exportCustomers()
 
 //Get customers
     global $pdo;
+    //Check for rs_cid columns
+    $pdoStatement = $pdo->query("DESCRIBE `pc_owner`");
+    $columns = $pdoStatement->fetchAll(PDO::FETCH_COLUMN);   
+    $columns = array_flip($columns);  
+    if(!isset($columns['rs_cid'])){
+       $pdo->query("ALTER TABLE pc_owner ADD rs_cid INTEGER");
+    };
     $pdoStatement = $pdo->prepare("SELECT
                                     pcid
                                    ,pccompany as business_name
@@ -104,6 +111,7 @@ function exportCustomers()
     $curl = curl_init();
     $cnt = 0;
     $totalCustomers = count($customers);
+    if($totalCustomers <= 0) print("\rThere are $totalCustomers customers to retrieve.");
     foreach($customers as $customer){
         //if the process was interrupted - next time begin with "not yet imported customer"// todo:
         curl_setopt($curl, CURLOPT_URL, BASE_URL.API_VERSION."/customers.json?api_key=".RS_API_KEY);
@@ -162,12 +170,12 @@ function exportTickets()
                                JOIN `pc_wo` pcw ON pco.pcid = pcw.pcid
                                ");
     if(!$pdoStatement->execute()) die("\rCould not get the list of tickets!");
-
     $list = $pdoStatement->fetchAll(PDO::FETCH_ASSOC);
 
     $curl = curl_init();
     $cnt = 0;
     $totalTickets = count($list);
+    if($totalTickets <= 0) print("\rThere are $totalTickets tickets to retrieve.");
     foreach($list as $item){
 
         $cmt='';
@@ -207,7 +215,7 @@ function exportTickets()
         curl_setopt($curl, CURLOPT_RETURNTRANSFER,true);
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($data));
-        //  curl_setopt($curl, CURLOPT_VERBOSE, true);
+        //curl_setopt($curl, CURLOPT_VERBOSE, true);
         curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 0);
         curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0);
         $out = curl_exec($curl);
@@ -239,7 +247,7 @@ function exportInvoices()
                                    JOIN pc_owner pco ON pco.pcid = pcw.pcid
                                    ");
 
-    if(!$pdoStatement->execute()) die("\rCould not get the list of tickets!");
+    if(!$pdoStatement->execute()) die("\rCould not get the list of invoices!");
 
     $invoices = $pdoStatement->fetchAll(PDO::FETCH_ASSOC);
     $success_count = 0;
@@ -249,6 +257,7 @@ function exportInvoices()
     $total_invoices = count($invoices);
     $inv_customers = array();
     $line_items = array();
+    if($total_invoices <= 0) print("\rThere are $total_invoices invoices to retrieve.");
 
     foreach($invoices as $invoice){
         $pdoStatement = $pdo->prepare("SELECT cart_price as price, cart_type as item, labor_desc as name, taxex as taxable FROM invoice_items WHERE invoice_id = :invoice_id");
@@ -328,41 +337,40 @@ function exportInvoices()
 /**
  * Export assets ===============================================================>
  */
-function exportAssets()
-{
-    $connection = mysql_connect(DATABASE_HOST, DATABASE_USERNAME, DATABASE_PASSWORD);
-    mysql_select_db(DATABASE_NAME, $connection);
-    $result = mysql_query("SELECT * FROM pc_owner where rs_cid is not null", $connection) or die(mysql_error());
-    $customers = [];
-    while($row = mysql_fetch_assoc($result)) {
-        $customers[] = $row;
-    }
-
+function exportAssets() {
+    global $pdo;
+    $pdoStatement = $pdo->prepare("SELECT * FROM pc_owner where rs_cid is not null");
+    if(!$pdoStatement->execute()) die("\rCould not get the list of assets!");
+    $customers = $pdoStatement->fetchAll(PDO::FETCH_ASSOC);
 
     $success_count = 0;
     $failure_count = 0;
-    $failure_message = "";
+    $failure_message = "\rSomething has gone wrong";
     $failed_records = array();
     $total_customers = count($customers);
-   // echo "total customers = ".$total_customers;
+    $asset_info_fields = array();
+    if($totalCustomers <= 0) print("\rThere are $totalCustomers assets to retrieve.");
+    //print("total customers = ".$total_customers);
 
     $curl = curl_init();
     $cnt = 0;
     foreach ($customers as $key => $value) {
-        $result = mysql_query("SELECT * FROM mainassettypes WHERE mainassettypeid = ". $value['mainassettypeid'], $connection);
+        $get_assets = $pdo->prepare("SELECT * FROM mainassettypes WHERE mainassettypeid = ". $value['mainassettypeid']);
+        if(!$get_assets->execute()) die("\rCould not get the list of assets with matching ids!");
         // $asset = [];
-        $main_asset = [];
-        $properties = [];
-        while($row = mysql_fetch_assoc($result)) {
-            $main_asset = $row;
+        $main_asset = array();
+        $properties = array();
+        $assets = $get_assets->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($assets as $asset => $av) {
+            $main_asset[] = $av['mainassetname'];
         }
-        $asset_info_fields = unserialize($value['pcextra']);
+        $asset_info_fields[] = unserialize($value['pcextra']);
+
 
         foreach ($asset_info_fields as $k => $val) {
             if($val != "") {
-                $result = mysql_query("SELECT * FROM mainassetinfofields WHERE mainassetfieldid = ". $k, $connection);
-
-                while($row = mysql_fetch_assoc($result)) {
+                $stmnt = $pdo->prepare("SELECT * FROM mainassetinfofields WHERE mainassetfieldid = ". $k);
+                while($row = $stmnt->fetchAll(PDO::FETCH_ASSOC)) {
                     $properties[][$row['mainassetfieldname']] = $val;
                 }
             }
@@ -374,12 +382,13 @@ function exportAssets()
         $postdata = json_encode(
             array(
                 'name' => $value['pcmake'],
-                'asset_type_name' => $main_asset['mainassetname'],
+                'asset_type_name' => $main_asset,
                 'customer_id' => $value['rs_cid'],
                 'asset_serial' => $value['rs_cid']
                 'properties' => $output
             )
         );
+        print("\r$postdata");
 
 
 
@@ -395,20 +404,20 @@ function exportAssets()
                 'Content-Length: ' . strlen($postdata))
         );
         $out = curl_exec($curl);
-       // echo "\n";
-        $json_result = json_decode($out, true);
-       // print_r($json_result);
-        if(isset($json_result['asset'])) {
+        if($out === false || $out === NULL) {
+            echo $failure_message;
+        } elseif(isset($json_result['asset'])) {
             $success_count++;
-        } elseif($out === false || $json_result === NULL) {
+        } else {
             $failure_count++;
         }
+        $json_result = json_decode($out, true);
+
         $cnt++;
         echo "\rAsset $cnt / $total_customers, Completed: ".($cnt/$total_customers*100)."%";
-
     }
 
-    mysql_close($connection);
+    curl_close($curl);
 }
 /**
  * Export assets end ===============================================================>
