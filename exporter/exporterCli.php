@@ -101,7 +101,7 @@ function exportCustomers()
                                    ,pczip as zip
                                    ,pcnotes as notes
                                 FROM `pc_owner`
-                                WHERE rs_cid is null and LENGTH(pcemail)>0");
+                                WHERE rs_cid is null");
     if(!$pdoStatement->execute()) die("\rCould not get the list of customers!");
 
     $customers = $pdoStatement->fetchAll(PDO::FETCH_ASSOC);
@@ -140,6 +140,7 @@ function exportCustomers()
         else if(isset($out['customer'])) {
             $sql = "UPDATE pc_owner SET rs_cid=".$out['customer']['id']." WHERE pcid=".$customer['pcid'];
             $pdo->query($sql);
+            
         }
         echo "\nCustomer $cnt / $totalCustomers, Finished: ".($cnt/$totalCustomers*100)."%";
     }
@@ -183,11 +184,13 @@ function exportTickets()
 
     $curl = curl_init();
     $cnt = 0;
+    $errors = 0;
     $totalTickets = count($list);
     if($totalTickets <= 0) print("\rThere are $totalTickets tickets to retrieve.");
     foreach($list as $item){
 
         $cmt='';
+        $subject = isset($item['probdesc']) ? $item['probdesc'] : "(empty)";
         foreach($item as $k => $v) {
             if($k == 'sked') {
                 $v = ($v == 1) ? "Yes" : "No";
@@ -197,6 +200,11 @@ function exportTickets()
             } else if($k == 'called') {
                 if(array_key_exists($v, $called_values)) {
                     $v =  $called_values[$v];
+                }
+            } else if ($k == 'probdesc') {
+                if (strlen($v) > 255) {
+                    $subject = substr($v,0,250);
+                    $cmt .= $v ."\n";
                 }
             }
             if(array_key_exists($k, $nice_names)) {
@@ -210,7 +218,7 @@ function exportTickets()
             'mobile' => $item['pccellphone'],
             'due_date' => (isset($item['skeddate']) && $item['skeddate'] != "0000-00-00 00:00:00") ? $item['skeddate'] : date('Y-m-d H:i:s'),
             'created_at' => $item['dropdate'],
-            'subject' => isset($item['probdesc']) ? $item['probdesc'] : "(empty)",
+            'subject' => $subject,
             'problem_type' => "(empty)",
             'status' => "Resolved",
             'comment_subject'=>'PCRT Internal Data',
@@ -224,19 +232,34 @@ function exportTickets()
         curl_setopt($curl, CURLOPT_RETURNTRANSFER,true);
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($data));
-        //curl_setopt($curl, CURLOPT_VERBOSE, true);
         curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 0);
         curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0);
+        //$jic = curl_setopt($curl, CURLOPT_VERBOSE, true);
         $out = curl_exec($curl);
+        $out = json_decode($out,true);
         $cnt++;
-       // echo "\n$out\n";
+
+        if($out === false || $out === NULL) {
+            $failure_message = "\n\rNot able to connect to RepairShopr at the moment. Please check if you entered API key and subdomain correctly.";
+            echo $failure_message;
+            $errors++;
+          
+        }elseif(isset($out['message'])){
+            echo "\n\rMessage from server while exporting ticket for (".$item['pcemail']."): ".implode("\n",$out['message'])."\n";
+            $errors++;
+        } elseif(isset($json_result['item'])) {
+            $success_count++;
+        } else {
+            //echo $jic;
+            $errors++;
+        }
+        echo "\nDescription: " . $cmt;
         echo "\rTicket $cnt / $totalTickets, Completed: ".($cnt/$totalTickets*100)."%";
-
-
 
     }
 
     curl_close($curl);
+    echo "\nError count: $errors/$totalTickets";
 }
 /**
  * Export tickets End ==========================================================>
@@ -260,8 +283,8 @@ function exportInvoices()
 
     $invoices = $pdoStatement->fetchAll(PDO::FETCH_ASSOC);
     $success_count = 0;
-    $failure_count = 0;
-    $failure_message = "";
+    $errors = 0;
+    $failure_message = "\nNot able to connect to RepairShopr at the moment. Please check if you entered API key and subdomain correctly.";
     $failed_records = array();
     $total_invoices = count($invoices);
     $inv_customers = array();
@@ -313,7 +336,7 @@ function exportInvoices()
         curl_setopt($curl, CURLOPT_RETURNTRANSFER,true);
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_POSTFIELDS, $postdata);
-        //curl_setopt($curl, CURLOPT_VERBOSE, true);
+        //$jic = curl_setopt($curl, CURLOPT_VERBOSE, true);
         curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 0);
         curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0);
         curl_setopt($curl, CURLOPT_HTTPHEADER, array(
@@ -321,21 +344,27 @@ function exportInvoices()
                 'Content-Length: ' . strlen($postdata))
         );
         $out = curl_exec($curl);
-
-        $json_result = json_decode($out, true);
-        if($out === false || $json_result === NULL) {
-            echo "Not able to connect to RepairShopr at the moment. Please check if you entered API key and subdomain correctly";
+        $out = json_decode($out, true);
+        $cnt++;
+        
+        if($out === false || $out === NULL) {
+            echo $failure_message;
+            $errors++;
+        } elseif(isset($out['message'])){
+            echo "\n\rMessage from server while exporting invoice (".$invoice['invoice_id']."): ".implode("\n",$out['message'])."\n";
+            $errors++;
         } elseif(isset($json_result['invoice'])) {
             $success_count++;
         } else {
-            $failure_count++;
+            $errors++;
+            //echo $jic;
         }
-        $cnt++;
+        
         echo "\rInvoice $cnt / $total_invoices, Completed: ".($cnt/$total_invoices*100)."%";
     }
 
     curl_close($curl);
-
+    echo "\nError count: $errors/$total_invoices";
 
 
 }
@@ -353,8 +382,7 @@ function exportAssets() {
     $customers = $pdoStatement->fetchAll(PDO::FETCH_ASSOC);
 
     $success_count = 0;
-    $failure_count = 0;
-    $failure_message = "\nSomething has gone wrong";
+    $failure_message = "\nNot able to connect to RepairShopr at the moment. Please check if you entered API key and subdomain correctly.";
     $failed_records = array();
     $total_customers = count($customers);
     $asset_info_fields = array();
@@ -365,15 +393,16 @@ function exportAssets() {
     $cnt = 0;
     $errors = 0;
     foreach ($customers as $key => $value) {
-        $get_assets = $pdo->prepare("SELECT * FROM mainassettypes WHERE mainassettypeid = ". $value['mainassettypeid']);
+        $get_assets = $pdo->prepare("SELECT * FROM mainassettypes WHERE mainassettypeid = ". $value['mainassettypeid'] ." ");
         if(!$get_assets->execute()) die("\rCould not get the list of assets with matching ids!");
-        // $asset = [];
-        $main_asset = null;
+        $main_asset = '';
         $properties = array();
         $assets = $get_assets->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($assets as $asset => $av) {
-            $main_asset = $av['mainassetname'];
+        foreach ($assets as $asset) {
+            $main_asset .= $asset["mainassetname"];
+            
         }
+        //print("\nThe asset type: ".$main_asset. ".");
         $asset_info_fields[] = unserialize($value['pcextra']);
 
 
@@ -394,7 +423,7 @@ function exportAssets() {
                 'name' => $value['pcmake'],
                 'asset_type_name' => $main_asset,
                 'customer_id' => $value['rs_cid'],
-                'asset_serial' => $value['rs_cid'],
+                'asset_serial' => $value['pcid'],
                 'properties' => $output
             )
         );
@@ -406,7 +435,7 @@ function exportAssets() {
         curl_setopt($curl, CURLOPT_RETURNTRANSFER,true);
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_POSTFIELDS, $postdata);
-        //curl_setopt($curl, CURLOPT_VERBOSE, true);
+        //$jic = curl_setopt($curl, CURLOPT_VERBOSE, true);
         curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 0);
         curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0);
         curl_setopt($curl, CURLOPT_HTTPHEADER, array(
@@ -414,27 +443,25 @@ function exportAssets() {
                 'Content-Length: ' . strlen($postdata))
         );
         $out = curl_exec($curl);
+        $out = json_decode($out, true);
+        $cnt++;
+
         if($out === false || $out === NULL) {
             echo $failure_message;
             $errors++;
           
         } elseif(isset($out['message'])){
-            echo "\n\rMessage from server while exporting customer (".$customers['email']."): ".implode("\n",$out['message'])."\n";
+            echo "\n\rMessage from server while exporting customer (".$value['pcname']."): ".implode("\n",$out['message'])."\n";
             $errors++;
-        } else if(isset($out['customer'])) {
-            $sql = "UPDATE pc_owner SET rs_cid=".$out['customer']['id']." WHERE pcid=".$customers['pcid'];
-            $pdo->query($sql);
-            echo "\nCustomer $cnt / $total_customers, Finished: ".($cnt/$total_customers*100)."%";
-        } elseif(isset($json_result['asset'])) {
+        }  elseif(isset($json_result['customer'])) {
             $success_count++;
         } else {
-            $failure_count++;
+            $errors++;
+            //echo $jic;
         }
-        $json_result = json_decode($out, true);
-
-        $cnt++;
         echo "\rAsset $cnt / $total_customers, Completed: ".($cnt/$total_customers*100)."%";
     }
+
     curl_close($curl);
     echo "\nError count: $errors/$total_customers";
 }
