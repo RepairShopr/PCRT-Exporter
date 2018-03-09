@@ -234,7 +234,7 @@ function exportTickets()
         curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($data));
         curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 0);
         curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0);
-        //$jic = curl_setopt($curl, CURLOPT_VERBOSE, true);
+        //curl_setopt($curl, CURLOPT_VERBOSE, true);
         $out = curl_exec($curl);
         $out = json_decode($out,true);
         $cnt++;
@@ -331,7 +331,7 @@ function exportInvoices()
         curl_setopt($curl, CURLOPT_RETURNTRANSFER,true);
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_POSTFIELDS, $postdata);
-        //$jic = curl_setopt($curl, CURLOPT_VERBOSE, true);
+        //curl_setopt($curl, CURLOPT_VERBOSE, true);
         curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 0);
         curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0);
         curl_setopt($curl, CURLOPT_HTTPHEADER, array(
@@ -352,7 +352,6 @@ function exportInvoices()
             $success_count++;
         } else {
             $errors++;
-            //echo $jic;
         }
         
         echo "\rInvoice $cnt / $total_invoices, Completed: ".($cnt/$total_invoices*100)."%";
@@ -430,7 +429,7 @@ function exportAssets() {
         curl_setopt($curl, CURLOPT_RETURNTRANSFER,true);
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_POSTFIELDS, $postdata);
-        //$jic = curl_setopt($curl, CURLOPT_VERBOSE, true);
+        //curl_setopt($curl, CURLOPT_VERBOSE, true);
         curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 0);
         curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0);
         curl_setopt($curl, CURLOPT_HTTPHEADER, array(
