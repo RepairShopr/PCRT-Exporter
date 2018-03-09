@@ -244,16 +244,11 @@ function exportTickets()
             echo $failure_message;
             $errors++;
           
-        }elseif(isset($out['message'])){
+        } elseif(isset($out['message'])){
             echo "\n\rMessage from server while exporting ticket for (".$item['pcemail']."): ".implode("\n",$out['message'])."\n";
             $errors++;
-        } elseif(isset($json_result['item'])) {
-            $success_count++;
-        } else {
-            //echo $jic;
-            $errors++;
         }
-        echo "\nDescription: " . $cmt;
+        //echo "\nDescription: " . $cmt;
         echo "\rTicket $cnt / $totalTickets, Completed: ".($cnt/$totalTickets*100)."%";
 
     }
@@ -453,11 +448,6 @@ function exportAssets() {
         } elseif(isset($out['message'])){
             echo "\n\rMessage from server while exporting customer (".$value['pcname']."): ".implode("\n",$out['message'])."\n";
             $errors++;
-        }  elseif(isset($json_result['customer'])) {
-            $success_count++;
-        } else {
-            $errors++;
-            //echo $jic;
         }
         echo "\rAsset $cnt / $total_customers, Completed: ".($cnt/$total_customers*100)."%";
     }
